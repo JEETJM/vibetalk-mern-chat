@@ -7,7 +7,7 @@ const cloudinary = require("../config/cloudinary");
 
 const router = express.Router();
 
-const createToken = (id) => {
+const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
     expiresIn: "30d"
   });
@@ -18,7 +18,7 @@ router.post("/register", upload.single("profilePic"), async (req, res) => {
     const { name, email, password } = req.body;
 
     if (!name || !email || !password) {
-      return res.status(400).json({ message: "Name, email and password required" });
+      return res.status(400).json({ message: "All fields required" });
     }
 
     const exists = await User.findOne({ email });
@@ -33,7 +33,7 @@ router.post("/register", upload.single("profilePic"), async (req, res) => {
       const base64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
 
       const result = await cloudinary.uploader.upload(base64, {
-        folder: "whatsapp-clone-dp",
+        folder: "vibetalk-profile",
         resource_type: "image"
       });
 
@@ -54,13 +54,13 @@ router.post("/register", upload.single("profilePic"), async (req, res) => {
       name: user.name,
       email: user.email,
       profilePic: user.profilePic,
-      token: createToken(user._id)
+      about: user.about || "",
+      wallpaper: user.wallpaper || "",
+      token: generateToken(user._id)
     });
   } catch (error) {
     console.log("REGISTER ERROR:", error);
-    res.status(500).json({
-      message: error.message || "Register failed"
-    });
+    res.status(500).json({ message: error.message || "Register failed" });
   }
 });
 
@@ -68,20 +68,16 @@ router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ message: "Email and password required" });
-    }
-
     const user = await User.findOne({ email });
 
     if (!user) {
-      return res.status(400).json({ message: "User not found. Please register first." });
+      return res.status(400).json({ message: "Invalid email or password" });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
+    const match = await bcrypt.compare(password, user.password);
 
-    if (!isMatch) {
-      return res.status(400).json({ message: "Wrong password" });
+    if (!match) {
+      return res.status(400).json({ message: "Invalid email or password" });
     }
 
     res.json({
@@ -89,13 +85,13 @@ router.post("/login", async (req, res) => {
       name: user.name,
       email: user.email,
       profilePic: user.profilePic,
-      token: createToken(user._id)
+      about: user.about || "",
+      wallpaper: user.wallpaper || "",
+      token: generateToken(user._id)
     });
   } catch (error) {
     console.log("LOGIN ERROR:", error);
-    res.status(500).json({
-      message: error.message || "Login failed"
-    });
+    res.status(500).json({ message: error.message || "Login failed" });
   }
 });
 

@@ -1,39 +1,60 @@
 const express = require("express");
-const dotenv = require("dotenv");
-const mongoose = require("mongoose");
-const cors = require("cors");
 const http = require("http");
-const { Server } = require("socket.io");
+const cors = require("cors");
+const dotenv = require("dotenv");
 const path = require("path");
+const { Server } = require("socket.io");
 
-dotenv.config();
-const statusRoutes = require("./routes/statusRoutes");
-const frontendPath = path.join(__dirname, "../frontend/dist");
+const connectDB = require("./config/db");
+const socketHandler = require("./socket");
+
 const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
 const messageRoutes = require("./routes/messageRoutes");
-const socketHandler = require("./socket");
 const profileRoutes = require("./routes/profileRoutes");
+const statusRoutes = require("./routes/statusRoutes");
+
+dotenv.config();
+
+connectDB();
+
 const app = express();
 const server = http.createServer(app);
+
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  process.env.CLIENT_URL
+].filter(Boolean);
+
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL,
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true
   })
 );
 
-app.use(express.json());
-app.use(express.static(frontendPath));
-
-
-app.get("*", (req, res) => {
-  res.sendFile(path.join(frontendPath, "index.html"));
+const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true
+  }
 });
 
+socketHandler(io);
 
-app.get("/", (req, res) => {
-  res.send("WhatsApp Clone API Running");
+app.get("/api", (req, res) => {
+  res.json({ message: "VibeTalk API is running" });
 });
 
 app.use("/api/auth", authRoutes);
@@ -41,24 +62,17 @@ app.use("/api/users", userRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/status", statusRoutes);
-const io = new Server(server, {
-  cors: {
-    origin: process.env.CLIENT_URL,
-    methods: ["GET", "POST", "PUT"]
-  }
+
+const frontendPath = path.join(__dirname, "../frontend/dist");
+
+app.use(express.static(frontendPath));
+
+app.get("*", (req, res) => {
+  res.sendFile(path.join(frontendPath, "index.html"));
 });
 
-socketHandler(io);
+const PORT = process.env.PORT || 8080;
 
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("MongoDB Connected");
-
-    server.listen(process.env.PORT, () => {
-      console.log(`Server running on port ${process.env.PORT}`);
-    });
-  })
-  .catch((error) => {
-    console.log("MongoDB Error:", error.message);
-  });
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});

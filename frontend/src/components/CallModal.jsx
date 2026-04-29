@@ -15,94 +15,65 @@ function CallModal({ currentUser, selectedUser, callData, setCallData }) {
   const [muted, setMuted] = useState(false);
   const [cameraOff, setCameraOff] = useState(false);
 
-  const isIncoming = callData?.incoming;
+  const isIncoming = Boolean(callData?.incoming);
   const isVideo = callData?.callType === "video";
+  const peerId = callData?.peerId;
 
   const fallbackBeep = () => {
     try {
-      const ctx = new AudioContext();
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+
+      const ctx = new AudioCtx();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
 
       osc.connect(gain);
       gain.connect(ctx.destination);
-
       osc.frequency.value = 780;
       gain.gain.value = 0.08;
 
       osc.start();
+
       setTimeout(() => {
         osc.stop();
         ctx.close();
-      }, 350);
-    } catch {}
+      }, 280);
+    } catch {
+      // ignore sound errors
+    }
+  };
+
+  const stopAllSounds = () => {
+    const sounds = [
+      incomingSoundRef.current,
+      outgoingSoundRef.current,
+      endSoundRef.current,
+    ];
+
+    sounds.forEach((audio) => {
+      if (!audio) return;
+      audio.pause();
+      audio.currentTime = 0;
+      audio.loop = false;
+    });
   };
 
   const playSound = (type) => {
-    let audio;
+    let audio = null;
 
     if (type === "incoming") audio = incomingSoundRef.current;
     if (type === "outgoing") audio = outgoingSoundRef.current;
     if (type === "end") audio = endSoundRef.current;
 
-    if (audio) {
-      audio.currentTime = 0;
-      audio.loop = type !== "end";
-      audio.play().catch(() => fallbackBeep());
-    } else {
+    if (!audio) {
       fallbackBeep();
-    }
-  };
-
-  const stopAllSounds = () => {
-    [incomingSoundRef.current, outgoingSoundRef.current, endSoundRef.current].forEach(
-      (audio) => {
-        if (audio) {
-          audio.pause();
-          audio.currentTime = 0;
-          audio.loop = false;
-        }
-      }
-    );
-  };
-
-  const createPeer = () => {
-    const peer = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
-    });
-
-    peer.onicecandidate = (event) => {
-      if (event.candidate && callData?.peerId) {
-        socket.emit("iceCandidate", {
-          to: callData.peerId,
-          candidate: event.candidate
-        });
-      }
-    };
-
-    peer.ontrack = (event) => {
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = event.streams[0];
-      }
-    };
-
-    peerRef.current = peer;
-    return peer;
-  };
-
-  const getMedia = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: isVideo
-    });
-
-    localStreamRef.current = stream;
-
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = stream;
+      return;
     }
 
-    return stream;
+    audio.currentTime = 0;
+    audio.loop = type !== "end";
+    audio.play().catch(() => fallbackBeep());
   };
 
   const cleanUp = () => {
@@ -119,8 +90,53 @@ function CallModal({ currentUser, selectedUser, callData, setCallData }) {
     setCameraOff(false);
   };
 
+  const createPeer = () => {
+    const peer = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    });
+
+    peer.onicecandidate = (event) => {
+      if (event.candidate && peerId) {
+        socket.emit("iceCandidate", {
+          to: peerId,
+          candidate: event.candidate,
+        });
+      }
+    };
+
+    peer.ontrack = (event) => {
+      if (remoteVideoRef.current && event.streams?.[0]) {
+        remoteVideoRef.current.srcObject = event.streams[0];
+      }
+    };
+
+    peerRef.current = peer;
+    return peer;
+  };
+
+  const getMedia = async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: isVideo,
+    });
+
+    localStreamRef.current = stream;
+
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = stream;
+    }
+
+    return stream;
+  };
+
   const startCall = async () => {
     try {
+      if (!selectedUser?._id || !currentUser?._id) {
+        alert("User data missing");
+        setCallData(null);
+        return;
+      }
+
       playSound("outgoing");
 
       const peer = createPeer();
@@ -139,11 +155,12 @@ function CallModal({ currentUser, selectedUser, callData, setCallData }) {
         callerName: currentUser.name,
         callerPic: currentUser.profilePic,
         callType: callData.callType,
-        offer
+        offer,
       });
 
       setInCall(true);
-    } catch {
+    } catch (error) {
+      console.log("Start call error:", error);
       alert("Camera/Microphone permission denied");
       cleanUp();
       setCallData(null);
@@ -152,6 +169,12 @@ function CallModal({ currentUser, selectedUser, callData, setCallData }) {
 
   const acceptCall = async () => {
     try {
+      if (!callData?.offer || !peerId) {
+        alert("Call data missing");
+        setCallData(null);
+        return;
+      }
+
       stopAllSounds();
 
       const peer = createPeer();
@@ -161,18 +184,21 @@ function CallModal({ currentUser, selectedUser, callData, setCallData }) {
         peer.addTrack(track, stream);
       });
 
-      await peer.setRemoteDescription(new RTCSessionDescription(callData.offer));
+      await peer.setRemoteDescription(
+        new RTCSessionDescription(callData.offer),
+      );
 
       const answer = await peer.createAnswer();
       await peer.setLocalDescription(answer);
 
       socket.emit("answerCall", {
-        to: callData.peerId,
-        answer
+        to: peerId,
+        answer,
       });
 
       setInCall(true);
-    } catch {
+    } catch (error) {
+      console.log("Accept call error:", error);
       alert("Camera/Microphone permission denied");
       cleanUp();
       setCallData(null);
@@ -180,15 +206,8 @@ function CallModal({ currentUser, selectedUser, callData, setCallData }) {
   };
 
   const rejectCall = () => {
-    socket.emit("rejectCall", { to: callData.peerId });
-    playSound("end");
-    cleanUp();
-    setCallData(null);
-  };
-
-  const endCall = () => {
-    if (callData?.peerId) {
-      socket.emit("endCall", { to: callData.peerId });
+    if (peerId) {
+      socket.emit("rejectCall", { to: peerId });
     }
 
     playSound("end");
@@ -196,103 +215,191 @@ function CallModal({ currentUser, selectedUser, callData, setCallData }) {
     setTimeout(() => {
       cleanUp();
       setCallData(null);
-    }, 250);
+    }, 220);
+  };
+
+  const endCall = () => {
+    if (peerId) {
+      socket.emit("endCall", { to: peerId });
+    }
+
+    playSound("end");
+
+    setTimeout(() => {
+      cleanUp();
+      setCallData(null);
+    }, 220);
   };
 
   const toggleMute = () => {
-    const audioTrack = localStreamRef.current?.getAudioTracks()[0];
+    const audioTrack = localStreamRef.current?.getAudioTracks()?.[0];
 
-    if (audioTrack) {
-      audioTrack.enabled = !audioTrack.enabled;
-      setMuted(!audioTrack.enabled);
-    }
+    if (!audioTrack) return;
+
+    audioTrack.enabled = !audioTrack.enabled;
+    setMuted(!audioTrack.enabled);
   };
+
+
+
+
+
+
+
+
+
+
 
   const toggleCamera = () => {
-    const videoTrack = localStreamRef.current?.getVideoTracks()[0];
+    const videoTrack = localStreamRef.current?.getVideoTracks()?.[0];
 
-    if (videoTrack) {
-      videoTrack.enabled = !videoTrack.enabled;
-      setCameraOff(!videoTrack.enabled);
-    }
+    if (!videoTrack) return;
+
+    videoTrack.enabled = !videoTrack.enabled;
+    setCameraOff(!videoTrack.enabled);
   };
 
+
+
+
+
+
+
+
+
+
+
+
+
+
   useEffect(() => {
-    incomingSoundRef.current = new Audio("/sounds/incoming-call.mp3");
-    outgoingSoundRef.current = new Audio("/sounds/outgoing-call.mp3");
-    endSoundRef.current = new Audio("/sounds/call-end.mp3");
+  incomingSoundRef.current = new Audio("/sounds/incoming-call.mp3");
+  outgoingSoundRef.current = new Audio("/sounds/outgoing-call.mp3");
+  endSoundRef.current = new Audio("/sounds/call-end.mp3");
+}, []);
 
-    if (callData?.incoming) {
-      playSound("incoming");
-    }
+useEffect(() => {
+  if (!callData?.incoming) return;
 
-    if (callData?.outgoing) {
-      startCall();
-    }
+  const timer = setTimeout(() => {
+    playSound("incoming");
+  }, 0);
 
-    const handleAccepted = async ({ answer }) => {
+  return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [callData?.incoming]);
+
+useEffect(() => {
+  if (!callData?.outgoing) return;
+
+  const timer = setTimeout(() => {
+    startCall();
+  }, 0);
+
+  return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [callData?.outgoing]);
+
+useEffect(() => {
+  const handleAccepted = async ({ answer }) => {
+    try {
       stopAllSounds();
 
-      if (peerRef.current) {
+      if (peerRef.current && answer) {
         await peerRef.current.setRemoteDescription(
           new RTCSessionDescription(answer)
         );
       }
 
       setInCall(true);
-    };
+    } catch (error) {
+      console.log("Call accepted error:", error);
+    }
+  };
 
-    const handleIce = async ({ candidate }) => {
-      try {
-        if (peerRef.current) {
-          await peerRef.current.addIceCandidate(new RTCIceCandidate(candidate));
-        }
-      } catch {}
-    };
+  const handleIce = async ({ candidate }) => {
+    try {
+      if (peerRef.current && candidate) {
+        await peerRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+      }
+    } catch (error) {
+      console.log("ICE error:", error);
+    }
+  };
 
-    const handleRejected = () => {
-      alert("Call rejected");
-      playSound("end");
+  const handleRejected = () => {
+    playSound("end");
 
-      setTimeout(() => {
-        cleanUp();
-        setCallData(null);
-      }, 250);
-    };
+    setTimeout(() => {
+      cleanUp();
+      setCallData(null);
+    }, 220);
+  };
 
-    const handleEnded = () => {
-      alert("Call ended");
-      playSound("end");
+  const handleEnded = () => {
+    playSound("end");
 
-      setTimeout(() => {
-        cleanUp();
-        setCallData(null);
-      }, 250);
-    };
+    setTimeout(() => {
+      cleanUp();
+      setCallData(null);
+    }, 220);
+  };
 
-    socket.on("callAccepted", handleAccepted);
-    socket.on("iceCandidate", handleIce);
-    socket.on("callRejected", handleRejected);
-    socket.on("callEnded", handleEnded);
+  socket.on("callAccepted", handleAccepted);
+  socket.on("iceCandidate", handleIce);
+  socket.on("callRejected", handleRejected);
+  socket.on("callEnded", handleEnded);
 
-    return () => {
-      socket.off("callAccepted", handleAccepted);
-      socket.off("iceCandidate", handleIce);
-      socket.off("callRejected", handleRejected);
-      socket.off("callEnded", handleEnded);
-      stopAllSounds();
-    };
-  }, []);
+  return () => {
+    socket.off("callAccepted", handleAccepted);
+    socket.off("iceCandidate", handleIce);
+    socket.off("callRejected", handleRejected);
+    socket.off("callEnded", handleEnded);
+    cleanUp();
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   if (!callData) return null;
 
   return (
     <div className="call-overlay">
-      {!inCall && isIncoming ? (
+      {!inCall && isIncoming ?
         <div className="incoming-call-card">
-          <img src={callData.callerPic} alt="caller" />
-          <h2>{callData.callerName}</h2>
-          <p>{callData.callType === "video" ? "Video call" : "Audio call"}</p>
+          <img
+            src={
+              callData.callerPic ||
+              "https://cdn-icons-png.flaticon.com/512/149/149071.png"
+            }
+            alt="caller"
+          />
+
+          <h2>{callData.callerName || "Unknown Caller"}</h2>
+          <p>{isVideo ? "Video call" : "Audio call"}</p>
 
           <div className="incoming-actions">
             <button className="reject-call" onClick={rejectCall}>
@@ -304,21 +411,26 @@ function CallModal({ currentUser, selectedUser, callData, setCallData }) {
             </button>
           </div>
         </div>
-      ) : (
-        <div className="call-screen">
+      : <div className="call-screen">
           <div className="remote-box">
-            {isVideo ? (
+            {isVideo ?
               <video ref={remoteVideoRef} autoPlay playsInline></video>
-            ) : (
-              <div className="audio-call-avatar">
+            : <div className="audio-call-avatar">
                 <img
-                  src={selectedUser?.profilePic || callData.callerPic}
+                  src={
+                    selectedUser?.profilePic ||
+                    callData.callerPic ||
+                    "https://cdn-icons-png.flaticon.com/512/149/149071.png"
+                  }
                   alt="audio caller"
                 />
-                <h2>{selectedUser?.name || callData.callerName}</h2>
-                <p>Audio call running...</p>
+
+                <h2>
+                  {selectedUser?.name || callData.callerName || "Audio Call"}
+                </h2>
+                <p>{inCall ? "Audio call running..." : "Calling..."}</p>
               </div>
-            )}
+            }
           </div>
 
           {isVideo && (
@@ -346,7 +458,7 @@ function CallModal({ currentUser, selectedUser, callData, setCallData }) {
             </button>
           </div>
         </div>
-      )}
+      }
     </div>
   );
 }

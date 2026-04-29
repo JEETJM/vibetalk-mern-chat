@@ -51,14 +51,14 @@ function Home() {
         ...prev,
         [senderId]: {
           text: preview,
-          time: msg.createdAt
-        }
+          time: msg.createdAt,
+        },
       }));
 
       if (String(selectedUserRef.current?._id) !== senderId) {
         setUnreadCounts((prev) => ({
           ...prev,
-          [senderId]: (prev[senderId] || 0) + 1
+          [senderId]: (prev[senderId] || 0) + 1,
         }));
 
         audioRef.current?.play().catch(() => {
@@ -72,7 +72,7 @@ function Home() {
           text: preview,
           pic:
             senderUser?.profilePic ||
-            "https://cdn-icons-png.flaticon.com/512/149/149071.png"
+            "https://cdn-icons-png.flaticon.com/512/149/149071.png",
         });
 
         setTimeout(() => setToast(null), 3500);
@@ -82,7 +82,7 @@ function Home() {
             body: preview,
             icon:
               senderUser?.profilePic ||
-              "https://cdn-icons-png.flaticon.com/512/149/149071.png"
+              "https://cdn-icons-png.flaticon.com/512/149/149071.png",
           });
         }
       }
@@ -94,9 +94,20 @@ function Home() {
     const fetchUsers = async () => {
       try {
         const { data } = await API.get("/users");
-        setUsers(data);
+
+        console.log("USERS FROM BACKEND:", data);
+
+        if (Array.isArray(data)) {
+          setUsers(data);
+        } else {
+          setUsers([]);
+        }
       } catch (error) {
-        console.log("Users fetch error:", error);
+        console.log(
+          "USERS FETCH ERROR:",
+          error.response?.data || error.message,
+        );
+        setUsers([]);
       }
     };
 
@@ -106,7 +117,7 @@ function Home() {
       socket.off("onlineUsers", handleOnlineUsers);
       socket.off("receiveMessage", handleReceiveMessage);
     };
-  }, [currentUser?._id, users]);
+  }, [currentUser?._id, selectedUser?._id]);
 
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
@@ -119,7 +130,7 @@ function Home() {
 
     setUnreadCounts((prev) => ({
       ...prev,
-      [String(user._id)]: 0
+      [String(user._id)]: 0,
     }));
   };
 
@@ -140,7 +151,7 @@ function Home() {
       <Sidebar
         users={users.map((u) => ({
           ...u,
-          lastMessage: lastMessages[String(u._id)]
+          lastMessage: lastMessages[String(u._id)],
         }))}
         selectedUser={selectedUser}
         setSelectedUser={handleSelectUser}
@@ -163,10 +174,7 @@ function Home() {
       </div>
 
       {openStatus && (
-        <StatusViewer
-          list={openStatus}
-          onClose={() => setOpenStatus(null)}
-        />
+        <StatusViewer list={openStatus} onClose={() => setOpenStatus(null)} />
       )}
     </div>
   );

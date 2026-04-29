@@ -2,17 +2,18 @@ import { useState } from "react";
 import API from "../api";
 
 function Register() {
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    password: ""
-  });
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   const [profilePic, setProfilePic] = useState(null);
-  const [preview, setPreview] = useState("");
+  const [preview, setPreview] = useState(
+    "https://cdn-icons-png.flaticon.com/512/149/149071.png"
+  );
+
   const [error, setError] = useState("");
 
-  const handleImage = (e) => {
+  const handlePic = (e) => {
     const file = e.target.files[0];
     setProfilePic(file);
 
@@ -21,15 +22,16 @@ function Register() {
     }
   };
 
-  const submitHandler = async (e) => {
+  const register = async (e) => {
     e.preventDefault();
 
     try {
-      const formData = new FormData();
+      setError("");
 
-      formData.append("name", form.name);
-      formData.append("email", form.email);
-      formData.append("password", form.password);
+      const formData = new FormData();
+      formData.append("name", name);
+      formData.append("email", email);
+      formData.append("password", password);
 
       if (profilePic) {
         formData.append("profilePic", profilePic);
@@ -37,52 +39,62 @@ function Register() {
 
       const { data } = await API.post("/auth/register", formData);
 
+      console.log("REGISTER DATA:", data);
+
+      if (!data?.token) {
+        setError("Token missing from backend");
+        return;
+      }
+
       localStorage.setItem("chatUser", JSON.stringify(data));
-      window.location.href = "/";
-    } catch (err) {
-      setError(err.response?.data?.message || "Register failed");
+
+      window.location.href = "/home";
+    } catch (error) {
+      console.log("REGISTER ERROR:", error.response?.data || error.message);
+      setError(error.response?.data?.message || "Register failed");
     }
   };
 
   return (
     <div className="auth-page">
-      <form className="auth-card" onSubmit={submitHandler}>
+      <form className="auth-card" onSubmit={register}>
         <h1>Join Chat</h1>
         <p>Create your WhatsApp-style account</p>
 
         <label className="dp-upload">
-          <img
-            src={preview || "https://cdn-icons-png.flaticon.com/512/149/149071.png"}
-            alt="dp"
-          />
+          <img src={preview} alt="dp" />
           <span>Upload DP</span>
-          <input type="file" accept="image/*" hidden onChange={handleImage} />
+          <input type="file" hidden accept="image/*" onChange={handlePic} />
         </label>
 
         {error && <div className="auth-error">{error}</div>}
 
         <input
           type="text"
-          placeholder="Full name"
+          placeholder="Name"
+          value={name}
           required
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          onChange={(e) => setName(e.target.value)}
         />
 
         <input
           type="email"
-          placeholder="Email address"
+          placeholder="Email"
+          value={email}
           required
-          onChange={(e) => setForm({ ...form, email: e.target.value })}
+          onChange={(e) => setEmail(e.target.value)}
         />
 
         <input
           type="password"
           placeholder="Password"
+          value={password}
           required
-          onChange={(e) => setForm({ ...form, password: e.target.value })}
+          minLength="6"
+          onChange={(e) => setPassword(e.target.value)}
         />
 
-        <button>Create Account</button>
+        <button type="submit">Create Account</button>
 
         <h4>
           Already have account? <a href="/login">Login</a>

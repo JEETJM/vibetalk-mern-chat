@@ -4,47 +4,85 @@ const onlineUsers = new Map();
 
 const socketHandler = (io) => {
   io.on("connection", (socket) => {
+    console.log("Socket connected:", socket.id);
+
     socket.on("setup", async (userId) => {
-      onlineUsers.set(userId.toString(), socket.id);
-      await User.findByIdAndUpdate(userId, { isOnline: true });
-      io.emit("onlineUsers", Array.from(onlineUsers.keys()));
+      try {
+        if (!userId) return;
+
+        onlineUsers.set(String(userId), socket.id);
+
+        await User.findByIdAndUpdate(userId, {
+          isOnline: true
+        });
+
+        io.emit("onlineUsers", Array.from(onlineUsers.keys()));
+      } catch (error) {
+        console.log("SOCKET SETUP ERROR:", error.message);
+      }
     });
 
     socket.on("sendMessage", (message) => {
-      const receiverSocket = onlineUsers.get(message.receiver.toString());
-      if (receiverSocket) {
-        io.to(receiverSocket).emit("receiveMessage", message);
+      try {
+        if (!message?.receiver) return;
+
+        const receiverSocket = onlineUsers.get(String(message.receiver));
+
+        if (receiverSocket) {
+          io.to(receiverSocket).emit("receiveMessage", message);
+        }
+      } catch (error) {
+        console.log("SEND MESSAGE SOCKET ERROR:", error.message);
       }
     });
 
     socket.on("typing", ({ receiverId, senderId }) => {
-      const receiverSocket = onlineUsers.get(receiverId.toString());
-      if (receiverSocket) io.to(receiverSocket).emit("typing", senderId);
+      const receiverSocket = onlineUsers.get(String(receiverId));
+
+      if (receiverSocket) {
+        io.to(receiverSocket).emit("typing", senderId);
+      }
     });
 
     socket.on("stopTyping", ({ receiverId, senderId }) => {
-      const receiverSocket = onlineUsers.get(receiverId.toString());
-      if (receiverSocket) io.to(receiverSocket).emit("stopTyping", senderId);
+      const receiverSocket = onlineUsers.get(String(receiverId));
+
+      if (receiverSocket) {
+        io.to(receiverSocket).emit("stopTyping", senderId);
+      }
     });
 
     socket.on("messageRead", ({ receiverId, readerId }) => {
-      const receiverSocket = onlineUsers.get(receiverId.toString());
-      if (receiverSocket) io.to(receiverSocket).emit("messageRead", readerId);
+      const receiverSocket = onlineUsers.get(String(receiverId));
+
+      if (receiverSocket) {
+        io.to(receiverSocket).emit("messageRead", readerId);
+      }
     });
 
     socket.on("editMessage", (message) => {
-      const receiverSocket = onlineUsers.get(message.receiver.toString());
-      if (receiverSocket) io.to(receiverSocket).emit("messageEdited", message);
+      if (!message?.receiver) return;
+
+      const receiverSocket = onlineUsers.get(String(message.receiver));
+
+      if (receiverSocket) {
+        io.to(receiverSocket).emit("messageEdited", message);
+      }
     });
 
     socket.on("deleteMessageEveryone", (message) => {
-      const receiverSocket = onlineUsers.get(message.receiver.toString());
-      if (receiverSocket) io.to(receiverSocket).emit("messageDeletedEveryone", message);
+      if (!message?.receiver) return;
+
+      const receiverSocket = onlineUsers.get(String(message.receiver));
+
+      if (receiverSocket) {
+        io.to(receiverSocket).emit("messageDeletedEveryone", message);
+      }
     });
 
-    // CALL EVENTS
     socket.on("callUser", ({ to, from, callerName, callerPic, callType, offer }) => {
-      const receiverSocket = onlineUsers.get(to.toString());
+      const receiverSocket = onlineUsers.get(String(to));
+
       if (receiverSocket) {
         io.to(receiverSocket).emit("incomingCall", {
           from,
@@ -57,48 +95,61 @@ const socketHandler = (io) => {
     });
 
     socket.on("answerCall", ({ to, answer }) => {
-      const receiverSocket = onlineUsers.get(to.toString());
+      const receiverSocket = onlineUsers.get(String(to));
+
       if (receiverSocket) {
         io.to(receiverSocket).emit("callAccepted", { answer });
       }
     });
 
     socket.on("iceCandidate", ({ to, candidate }) => {
-      const receiverSocket = onlineUsers.get(to.toString());
+      const receiverSocket = onlineUsers.get(String(to));
+
       if (receiverSocket) {
         io.to(receiverSocket).emit("iceCandidate", { candidate });
       }
     });
 
     socket.on("rejectCall", ({ to }) => {
-      const receiverSocket = onlineUsers.get(to.toString());
-      if (receiverSocket) io.to(receiverSocket).emit("callRejected");
+      const receiverSocket = onlineUsers.get(String(to));
+
+      if (receiverSocket) {
+        io.to(receiverSocket).emit("callRejected");
+      }
     });
 
     socket.on("endCall", ({ to }) => {
-      const receiverSocket = onlineUsers.get(to.toString());
-      if (receiverSocket) io.to(receiverSocket).emit("callEnded");
+      const receiverSocket = onlineUsers.get(String(to));
+
+      if (receiverSocket) {
+        io.to(receiverSocket).emit("callEnded");
+      }
     });
 
     socket.on("disconnect", async () => {
-      let disconnectedUserId = null;
+      try {
+        let disconnectedUserId = null;
 
-      for (const [userId, socketId] of onlineUsers.entries()) {
-        if (socketId === socket.id) {
-          disconnectedUserId = userId;
-          onlineUsers.delete(userId);
-          break;
+        for (const [userId, socketId] of onlineUsers.entries()) {
+          if (socketId === socket.id) {
+            disconnectedUserId = userId;
+            onlineUsers.delete(userId);
+            break;
+          }
         }
-      }
 
-      if (disconnectedUserId) {
-        await User.findByIdAndUpdate(disconnectedUserId, {
-          isOnline: false,
-          lastSeen: new Date()
-        });
-      }
+        if (disconnectedUserId) {
+          await User.findByIdAndUpdate(disconnectedUserId, {
+            isOnline: false,
+            lastSeen: new Date()
+          });
+        }
 
-      io.emit("onlineUsers", Array.from(onlineUsers.keys()));
+        io.emit("onlineUsers", Array.from(onlineUsers.keys()));
+        console.log("Socket disconnected:", socket.id);
+      } catch (error) {
+        console.log("SOCKET DISCONNECT ERROR:", error.message);
+      }
     });
   });
 };
