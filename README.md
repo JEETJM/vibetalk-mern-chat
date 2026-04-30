@@ -1,14 +1,3 @@
-<div align="center">
-
-# ⚡ VibeTalk
-
-### Premium WhatsApp-Style MERN Real-Time Chat Application
-
-<img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=800&size=26&pause=900&color=00A884&center=true&vCenter=true&width=800&lines=Private+1-to-1+Real-Time+Chat;Send+Text+Images+Files+and+Voice;Audio+and+Video+Calling;Status+Camera+and+Wallpaper;Built+by+Jeet+Mondal" />
-
-</div>
-
-
 
 
 <div align="center">
