@@ -32,7 +32,6 @@ function CallModal({
   const formatDuration = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-
     return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   };
 
@@ -76,9 +75,7 @@ function CallModal({
   const cleanUp = () => {
     stopTimer();
 
-    localStreamRef.current?.getTracks().forEach((track) => {
-      track.stop();
-    });
+    localStreamRef.current?.getTracks().forEach((track) => track.stop());
 
     if (peerRef.current) {
       peerRef.current.onicecandidate = null;
@@ -118,7 +115,6 @@ function CallModal({
 
     peer.ontrack = async (event) => {
       const remoteStream = event.streams?.[0];
-
       if (!remoteStream) return;
 
       console.log("REMOTE STREAM TRACKS:", remoteStream.getTracks());
@@ -149,16 +145,6 @@ function CallModal({
       if (peer.connectionState === "connected") {
         startTimer();
         setInCall(true);
-      }
-
-      if (
-        peer.connectionState === "failed" ||
-        peer.connectionState === "disconnected" ||
-        peer.connectionState === "closed"
-      ) {
-        if (callStartedRef.current) {
-          saveCallHistory("Completed");
-        }
       }
     };
 

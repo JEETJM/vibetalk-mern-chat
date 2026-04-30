@@ -2,9 +2,24 @@ const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
+    name: {
+      type: String,
+      required: true,
+      trim: true
+    },
+
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true
+    },
+
+    password: {
+      type: String,
+      required: true
+    },
 
     profilePic: {
       type: String,
@@ -13,7 +28,7 @@ const userSchema = new mongoose.Schema(
 
     about: {
       type: String,
-      default: "Hey there! I am using MERN Chat."
+      default: "Hey there! I am using VibeTalk."
     },
 
     wallpaper: {
@@ -21,18 +36,25 @@ const userSchema = new mongoose.Schema(
       default: ""
     },
 
-    chatLocked: {
+    isOnline: {
       type: Boolean,
       default: false
     },
 
-    chatLockPin: {
+    lastSeen: {
+      type: Date,
+      default: Date.now
+    },
+
+    resetOtp: {
       type: String,
       default: ""
     },
 
-    isOnline: { type: Boolean, default: false },
-    lastSeen: { type: Date, default: Date.now }
+    resetOtpExpire: {
+      type: Date,
+      default: null
+    }
   },
   { timestamps: true }
 );

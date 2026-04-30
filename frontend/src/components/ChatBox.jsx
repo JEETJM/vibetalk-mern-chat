@@ -7,15 +7,16 @@ import {
   BsStopFill,
   BsLockFill,
   BsCameraVideoFill,
-  BsTelephoneFill
+  BsTelephoneFill,
 } from "react-icons/bs";
+import { MdArrowBackIosNew } from "react-icons/md";
 import { IoSend } from "react-icons/io5";
 import API from "../api";
 import socket from "../socket";
 import MessageBubble from "./MessageBubble";
 import CallModal from "./CallModal";
 
-function ChatBox({ selectedUser, currentUser, onlineUsers }) {
+function ChatBox({ selectedUser, setSelectedUser, currentUser, onlineUsers }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [file, setFile] = useState(null);
@@ -31,7 +32,6 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
 
   const [showCamera, setShowCamera] = useState(false);
   const [callData, setCallData] = useState(null);
-
   const [showCallHistory, setShowCallHistory] = useState(false);
 
   const mediaRecorderRef = useRef(null);
@@ -46,56 +46,43 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
   const safeOnlineUsers = Array.isArray(onlineUsers) ? onlineUsers : [];
 
   const savedUser = JSON.parse(localStorage.getItem("chatUser") || "null");
-  const chatWallpaper = safeCurrentUser?.wallpaper || savedUser?.wallpaper || "";
+  const chatWallpaper =
+    safeCurrentUser?.wallpaper || savedUser?.wallpaper || "";
 
-  const lockKey = selectedUser
-    ? `chat_lock_${safeCurrentUser._id}_${selectedUser._id}`
-    : "";
+  const lockKey =
+    selectedUser ? `chat_lock_${safeCurrentUser._id}_${selectedUser._id}` : "";
 
-const callHistoryKey = `call_history_${safeCurrentUser?._id || "guest"}`;
-const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
+  const callHistoryKey = `call_history_${safeCurrentUser._id}`;
+  const callHistoryPinKey = `call_history_pin_${safeCurrentUser._id}`;
 
   const [callHistory, setCallHistory] = useState(() => {
-    return JSON.parse(localStorage.getItem(callHistoryKey) || "[]");
+    const saved = JSON.parse(localStorage.getItem(callHistoryKey) || "[]");
+    return Array.isArray(saved) ? saved : [];
   });
 
-  // useEffect(() => {
-  //   if (!safeCurrentUser?._id) return;
-
-  //   const savedHistory = JSON.parse(localStorage.getItem(callHistoryKey) || "[]");
-  //   setCallHistory(Array.isArray(savedHistory) ? savedHistory : []);
-  // }, [safeCurrentUser?._id]);
   useEffect(() => {
-  if (!safeCurrentUser?._id) return;
+    if (!safeCurrentUser?._id) return;
 
-  const timer = setTimeout(() => {
     const savedHistory = JSON.parse(
-      localStorage.getItem(callHistoryKey) || "[]"
+      localStorage.getItem(callHistoryKey) || "[]",
     );
-
     setCallHistory(Array.isArray(savedHistory) ? savedHistory : []);
-  }, 0);
-
-  return () => clearTimeout(timer);
-}, [safeCurrentUser?._id, callHistoryKey]);
+  }, [safeCurrentUser?._id, callHistoryKey]);
 
   const addCallHistory = (item) => {
     const newItem = {
       id: Date.now(),
       name: item.name || "Unknown",
-      pic:
-        item.pic ||
-        "https://cdn-icons-png.flaticon.com/512/149/149071.png",
+      pic: item.pic || "https://cdn-icons-png.flaticon.com/512/149/149071.png",
       type: item.type || "audio",
       status: item.status || "Outgoing",
       durationSeconds: 0,
       durationText: "00:00",
-      time: new Date().toISOString()
+      time: new Date().toISOString(),
     };
 
     const oldHistory = JSON.parse(localStorage.getItem(callHistoryKey) || "[]");
     const safeHistory = Array.isArray(oldHistory) ? oldHistory : [];
-
     const updated = [newItem, ...safeHistory];
 
     setCallHistory(updated);
@@ -109,7 +96,7 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
     const safeHistory = Array.isArray(oldHistory) ? oldHistory : [];
 
     const updated = safeHistory.map((call) =>
-      call.id === id ? { ...call, ...updates } : call
+      call.id === id ? { ...call, ...updates } : call,
     );
 
     setCallHistory(updated);
@@ -201,10 +188,13 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
 
         socket.emit("messageRead", {
           receiverId: selectedUser._id,
-          readerId: safeCurrentUser._id
+          readerId: safeCurrentUser._id,
         });
       } catch (error) {
-        console.log("Messages fetch error:", error.response?.data || error.message);
+        console.log(
+          "Messages fetch error:",
+          error.response?.data || error.message,
+        );
         setMessages([]);
       }
     };
@@ -224,7 +214,7 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
 
           socket.emit("messageRead", {
             receiverId: selectedUser._id,
-            readerId: safeCurrentUser._id
+            readerId: safeCurrentUser._id,
           });
         } catch (error) {
           console.log("Read update error:", error);
@@ -247,20 +237,20 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
     const handleMessageRead = () => {
       setMessages((prev) =>
         prev.map((m) =>
-          m.sender === safeCurrentUser._id ? { ...m, isRead: true } : m
-        )
+          m.sender === safeCurrentUser._id ? { ...m, isRead: true } : m,
+        ),
       );
     };
 
     const handleMessageEdited = (editedMsg) => {
       setMessages((prev) =>
-        prev.map((m) => (m._id === editedMsg._id ? editedMsg : m))
+        prev.map((m) => (m._id === editedMsg._id ? editedMsg : m)),
       );
     };
 
     const handleMessageDeletedEveryone = (deletedMsg) => {
       setMessages((prev) =>
-        prev.map((m) => (m._id === deletedMsg._id ? deletedMsg : m))
+        prev.map((m) => (m._id === deletedMsg._id ? deletedMsg : m)),
       );
     };
 
@@ -287,7 +277,7 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
         name: data.callerName,
         pic: data.callerPic,
         type: data.callType,
-        status: "Incoming"
+        status: "Incoming",
       });
 
       setCallData({
@@ -297,7 +287,7 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
         callerPic: data.callerPic,
         callType: data.callType,
         offer: data.offer,
-        historyId
+        historyId,
       });
     };
 
@@ -358,7 +348,7 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
 
     socket.emit("typing", {
       receiverId: selectedUser._id,
-      senderId: safeCurrentUser._id
+      senderId: safeCurrentUser._id,
     });
 
     clearTimeout(typingTimeout.current);
@@ -366,7 +356,7 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
     typingTimeout.current = setTimeout(() => {
       socket.emit("stopTyping", {
         receiverId: selectedUser._id,
-        senderId: safeCurrentUser._id
+        senderId: safeCurrentUser._id,
       });
     }, 700);
   };
@@ -383,12 +373,10 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
 
     try {
       const { data } = await API.put(`/messages/edit/${msg._id}`, {
-        text: newText
+        text: newText,
       });
 
-      setMessages((prev) =>
-        prev.map((m) => (m._id === msg._id ? data : m))
-      );
+      setMessages((prev) => prev.map((m) => (m._id === msg._id ? data : m)));
 
       socket.emit("editMessage", data);
     } catch (error) {
@@ -407,11 +395,11 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
 
   const deleteForEveryone = async (msg) => {
     try {
-      const { data } = await API.put(`/messages/delete-for-everyone/${msg._id}`);
-
-      setMessages((prev) =>
-        prev.map((m) => (m._id === msg._id ? data : m))
+      const { data } = await API.put(
+        `/messages/delete-for-everyone/${msg._id}`,
       );
+
+      setMessages((prev) => prev.map((m) => (m._id === msg._id ? data : m)));
 
       socket.emit("deleteMessageEveryone", data);
     } catch (error) {
@@ -426,7 +414,7 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
-        audio: false
+        audio: false,
       });
 
       cameraStreamRef.current = stream;
@@ -465,7 +453,7 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
       if (!blob) return;
 
       const photoFile = new File([blob], `camera-${Date.now()}.png`, {
-        type: "image/png"
+        type: "image/png",
       });
 
       setFile(photoFile);
@@ -488,7 +476,7 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
       fileType: audioBlob ? "audio/webm" : file?.type || "",
       isRead: false,
       createdAt: new Date().toISOString(),
-      sending: true
+      sending: true,
     };
 
     setMessages((prev) => [...prev, optimisticMsg]);
@@ -516,9 +504,7 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
 
       const { data } = await API.post("/messages", formData);
 
-      setMessages((prev) =>
-        prev.map((m) => (m._id === tempId ? data : m))
-      );
+      setMessages((prev) => prev.map((m) => (m._id === tempId ? data : m)));
 
       socket.emit("sendMessage", data);
     } catch (error) {
@@ -535,8 +521,8 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
-        }
+          autoGainControl: true,
+        },
       });
 
       const recorder = new MediaRecorder(stream);
@@ -549,7 +535,7 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
 
       recorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, {
-          type: "audio/webm"
+          type: "audio/webm",
         });
 
         stream.getTracks().forEach((track) => track.stop());
@@ -575,14 +561,14 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
       name: selectedUser.name,
       pic: selectedUser.profilePic,
       type: "audio",
-      status: "Outgoing"
+      status: "Outgoing",
     });
 
     setCallData({
       outgoing: true,
       peerId: selectedUser._id,
       callType: "audio",
-      historyId
+      historyId,
     });
   };
 
@@ -593,14 +579,14 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
       name: selectedUser.name,
       pic: selectedUser.profilePic,
       type: "video",
-      status: "Outgoing"
+      status: "Outgoing",
     });
 
     setCallData({
       outgoing: true,
       peerId: selectedUser._id,
       callType: "video",
-      historyId
+      historyId,
     });
   };
 
@@ -630,7 +616,16 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
     return (
       <main className="chat-area">
         <header className="chat-header">
+          <button
+            className="mobile-back-btn premium-back-btn"
+            onClick={() => setSelectedUser(null)}
+            title="Back"
+          >
+            <MdArrowBackIosNew />
+          </button>
+
           <img
+            className="chat-header-avatar"
             src={
               selectedUser.profilePic ||
               "https://cdn-icons-png.flaticon.com/512/149/149071.png"
@@ -638,7 +633,7 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
             alt={selectedUser.name}
           />
 
-          <div>
+          <div className="chat-header-info">
             <h3>{selectedUser.name}</h3>
             <p>Locked chat</p>
           </div>
@@ -675,7 +670,15 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
   return (
     <main className="chat-area">
       <header className="chat-header">
+        <button
+          className="mobile-back-btn"
+          onClick={() => setSelectedUser(null)}
+        >
+          ←
+        </button>
+
         <img
+          className="chat-header-avatar"
           src={
             selectedUser.profilePic ||
             "https://cdn-icons-png.flaticon.com/512/149/149071.png"
@@ -683,20 +686,21 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
           alt={selectedUser.name}
         />
 
-        <div>
+        <div className="chat-header-info">
           <h3>{selectedUser.name}</h3>
+
           <p>
-            {typing
-              ? "typing..."
-              : safeOnlineUsers.includes(selectedUser._id)
-              ? "Online"
-              : selectedUser.lastSeen
-              ? `Last seen ${new Date(selectedUser.lastSeen).toLocaleString()}`
-              : "Offline"}
+            {typing ?
+              "typing..."
+            : safeOnlineUsers.includes(selectedUser._id) ?
+              "Online"
+            : selectedUser.lastSeen ?
+              `Last seen ${new Date(selectedUser.lastSeen).toLocaleString()}`
+            : "Offline"}
           </p>
         </div>
 
-        <div className="call-buttons">
+        <div className="chat-header-actions">
           <button onClick={startAudioCall} title="Audio call">
             <BsTelephoneFill />
           </button>
@@ -704,31 +708,31 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
           <button onClick={startVideoCall} title="Video call">
             <BsCameraVideoFill />
           </button>
-        </div>
 
-        <button className="chat-lock-btn" onClick={openCallHistorySecure}>
-          History
-        </button>
-
-        <button className="chat-lock-btn" onClick={setChatLock}>
-          Lock
-        </button>
-
-        {localStorage.getItem(lockKey) && (
-          <button className="chat-lock-btn danger" onClick={removeChatLock}>
-            Remove Lock
+          <button onClick={openCallHistorySecure} title="Call history">
+            History
           </button>
-        )}
+
+          <button onClick={setChatLock} title="Lock chat">
+            Lock
+          </button>
+
+          {localStorage.getItem(lockKey) && (
+            <button className="danger-action" onClick={removeChatLock}>
+              Unlock
+            </button>
+          )}
+        </div>
       </header>
 
       <section
         className="messages-area"
         style={
-          chatWallpaper
-            ? {
-                background: `linear-gradient(rgba(11,20,26,0.72), rgba(11,20,26,0.72)), url("${chatWallpaper}") center / cover no-repeat`
-              }
-            : undefined
+          chatWallpaper ?
+            {
+              background: `linear-gradient(rgba(11,20,26,0.72), rgba(11,20,26,0.72)), url("${chatWallpaper}") center / cover no-repeat`,
+            }
+          : undefined
         }
       >
         {messages.map((msg) => (
@@ -782,8 +786,12 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
             />
           </label>
 
-          <button type="button" className="attach-menu-btn" onClick={openCamera}>
-            Camera
+          <button
+            type="button"
+            className="attach-menu-btn"
+            onClick={openCamera}
+          >
+            📷 Camera
           </button>
 
           <label>
@@ -828,7 +836,9 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
         </div>
       )}
 
-      {recording && <div className="recording-bar">🎤 Recording... tap stop</div>}
+      {recording && (
+        <div className="recording-bar">🎤 Recording... tap stop</div>
+      )}
 
       <footer className="chat-input-area">
         <button className="icon-btn" onClick={() => setShowMenu(!showMenu)}>
@@ -847,19 +857,18 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
           disabled={recording}
         />
 
-        {text.trim() || file ? (
+        {text.trim() || file ?
           <button className="send-btn" onClick={() => sendMessage()}>
             <IoSend />
           </button>
-        ) : recording ? (
+        : recording ?
           <button className="send-btn stop-record" onClick={stopRecording}>
             <BsStopFill />
           </button>
-        ) : (
-          <button className="send-btn mic-btn" onClick={startRecording}>
+        : <button className="send-btn mic-btn" onClick={startRecording}>
             <BsMicFill />
           </button>
-        )}
+        }
       </footer>
 
       {showCallHistory && (
@@ -875,12 +884,11 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
             <h2>Call History</h2>
 
             <div className="call-history-list">
-              {callHistory.length === 0 ? (
+              {callHistory.length === 0 ?
                 <p style={{ textAlign: "center", color: "#8696a0" }}>
                   No call history
                 </p>
-              ) : (
-                callHistory.map((call) => (
+              : callHistory.map((call) => (
                   <div className="call-history-row" key={call.id}>
                     <img
                       src={
@@ -905,7 +913,7 @@ const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
                     </button>
                   </div>
                 ))
-              )}
+              }
             </div>
 
             {callHistory.length > 0 && (
