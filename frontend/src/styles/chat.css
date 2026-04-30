@@ -1684,3 +1684,243 @@ textarea {
   max-height: 360px;
   overflow-y: auto;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* STATUS PREV ZONE */
+.status-prev-zone {
+  position: fixed;
+  left: 0;
+  top: 90px;
+  bottom: 0;
+  width: 35vw;
+  background: transparent;
+  border: none;
+  z-index: 999999;
+}
+
+/* VIDEO CALL LOCAL PREVIEW FIX */
+.local-video {
+  position: absolute !important;
+  right: 22px !important;
+  top: 22px !important;
+  width: 220px !important;
+  height: 155px !important;
+  object-fit: cover !important;
+  border-radius: 18px !important;
+  border: 2px solid #00a884 !important;
+  background: #111 !important;
+  transform: scaleX(-1) !important;
+  z-index: 20 !important;
+}
+
+.camera-off-badge {
+  position: absolute;
+  right: 42px;
+  top: 90px;
+  background: rgba(0,0,0,0.65);
+  color: white;
+  padding: 8px 14px;
+  border-radius: 999px;
+  z-index: 30;
+  font-weight: 800;
+}
+
+/* MOBILE RESPONSIVE FINAL */
+@media (max-width: 768px) {
+  body {
+    overflow: hidden;
+  }
+
+  .app-layout {
+    width: 100vw;
+    height: 100dvh;
+    display: block;
+    position: relative;
+  }
+
+  .sidebar {
+    width: 100vw !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    height: 100dvh !important;
+  }
+
+  .chat-area {
+    width: 100vw !important;
+    height: 100dvh !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 50 !important;
+  }
+
+  .chat-header {
+    height: 64px !important;
+    padding: 0 10px !important;
+    gap: 9px !important;
+  }
+
+  .chat-header img {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .chat-header h3 {
+    font-size: 15px !important;
+  }
+
+  .chat-header p {
+    font-size: 11px !important;
+  }
+
+  .call-buttons {
+    gap: 5px !important;
+  }
+
+  .call-buttons button {
+    width: 34px !important;
+    height: 34px !important;
+    font-size: 14px !important;
+  }
+
+  .chat-lock-btn {
+    padding: 7px 9px !important;
+    font-size: 11px !important;
+  }
+
+  .messages-area {
+    padding: 12px !important;
+  }
+
+  .message-bubble {
+    max-width: 86vw !important;
+  }
+
+  .message-image {
+    max-width: 76vw !important;
+  }
+
+  .chat-input-area {
+    min-height: 64px !important;
+    gap: 7px !important;
+    padding: 0 8px !important;
+  }
+
+  .icon-btn {
+    width: 38px !important;
+    height: 38px !important;
+    font-size: 21px !important;
+  }
+
+  .send-btn {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .chat-input-area input {
+    height: 42px !important;
+    font-size: 14px !important;
+  }
+
+  .attach-menu {
+    left: 10px !important;
+    bottom: 72px !important;
+    width: 220px !important;
+  }
+
+  .emoji-box {
+    left: 8px !important;
+    right: 8px !important;
+    bottom: 74px !important;
+    transform: scale(0.9);
+    transform-origin: bottom left;
+  }
+
+  .profile-modal {
+    width: 94vw !important;
+    max-height: 90dvh !important;
+    overflow-y: auto !important;
+  }
+
+  .status-viewer {
+    width: 100vw !important;
+    height: 100dvh !important;
+  }
+
+  .status-text {
+    font-size: 30px !important;
+  }
+
+  .status-header {
+    top: 14px !important;
+    left: 8px !important;
+    right: 8px !important;
+    padding: 8px !important;
+  }
+
+  .status-delete-btn {
+    padding: 7px 10px !important;
+    font-size: 12px !important;
+  }
+
+  .call-screen {
+    width: 100vw !important;
+    height: 100dvh !important;
+  }
+
+  .local-video {
+    width: 115px !important;
+    height: 155px !important;
+    right: 12px !important;
+    top: 12px !important;
+    border-radius: 14px !important;
+  }
+
+  .call-controls {
+    width: 94vw !important;
+    bottom: 18px !important;
+    gap: 8px !important;
+    padding: 10px !important;
+  }
+
+  .call-controls button {
+    min-width: 0 !important;
+    font-size: 12px !important;
+    padding: 11px 8px !important;
+  }
+
+  .incoming-call-card {
+    width: 90vw !important;
+  }
+
+  .audio-call-avatar img {
+    width: 115px !important;
+    height: 115px !important;
+  }
+
+  .camera-box {
+    width: 94vw !important;
+  }
+
+  .landing-card {
+    padding: 28px 20px !important;
+  }
+
+  .landing-footer {
+    position: static !important;
+    transform: none !important;
+    margin-top: 18px !important;
+  }
+}

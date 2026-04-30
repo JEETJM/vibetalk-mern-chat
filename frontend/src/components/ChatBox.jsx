@@ -19,6 +19,7 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [file, setFile] = useState(null);
+
   const [showEmoji, setShowEmoji] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [typing, setTyping] = useState(false);
@@ -32,9 +33,6 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
   const [callData, setCallData] = useState(null);
 
   const [showCallHistory, setShowCallHistory] = useState(false);
-  const [callHistory, setCallHistory] = useState(
-    JSON.parse(localStorage.getItem(`call_history_${currentUser._id}`)) || []
-  );
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -44,44 +42,138 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
   const videoRef = useRef(null);
   const cameraStreamRef = useRef(null);
 
-  const savedUser = JSON.parse(localStorage.getItem("chatUser"));
-  const chatWallpaper = currentUser?.wallpaper || savedUser?.wallpaper || "";
+  const safeCurrentUser = currentUser || {};
+  const safeOnlineUsers = Array.isArray(onlineUsers) ? onlineUsers : [];
+
+  const savedUser = JSON.parse(localStorage.getItem("chatUser") || "null");
+  const chatWallpaper = safeCurrentUser?.wallpaper || savedUser?.wallpaper || "";
 
   const lockKey = selectedUser
-    ? `chat_lock_${currentUser._id}_${selectedUser._id}`
+    ? `chat_lock_${safeCurrentUser._id}_${selectedUser._id}`
     : "";
+
+const callHistoryKey = `call_history_${safeCurrentUser?._id || "guest"}`;
+const callHistoryPinKey = `call_history_pin_${safeCurrentUser?._id || "guest"}`;
+
+  const [callHistory, setCallHistory] = useState(() => {
+    return JSON.parse(localStorage.getItem(callHistoryKey) || "[]");
+  });
+
+  // useEffect(() => {
+  //   if (!safeCurrentUser?._id) return;
+
+  //   const savedHistory = JSON.parse(localStorage.getItem(callHistoryKey) || "[]");
+  //   setCallHistory(Array.isArray(savedHistory) ? savedHistory : []);
+  // }, [safeCurrentUser?._id]);
+  useEffect(() => {
+  if (!safeCurrentUser?._id) return;
+
+  const timer = setTimeout(() => {
+    const savedHistory = JSON.parse(
+      localStorage.getItem(callHistoryKey) || "[]"
+    );
+
+    setCallHistory(Array.isArray(savedHistory) ? savedHistory : []);
+  }, 0);
+
+  return () => clearTimeout(timer);
+}, [safeCurrentUser?._id, callHistoryKey]);
 
   const addCallHistory = (item) => {
     const newItem = {
       id: Date.now(),
-      name: item.name,
-      pic: item.pic,
-      type: item.type,
-      status: item.status,
+      name: item.name || "Unknown",
+      pic:
+        item.pic ||
+        "https://cdn-icons-png.flaticon.com/512/149/149071.png",
+      type: item.type || "audio",
+      status: item.status || "Outgoing",
+      durationSeconds: 0,
+      durationText: "00:00",
       time: new Date().toISOString()
     };
 
-    const updated = [newItem, ...callHistory];
+    const oldHistory = JSON.parse(localStorage.getItem(callHistoryKey) || "[]");
+    const safeHistory = Array.isArray(oldHistory) ? oldHistory : [];
+
+    const updated = [newItem, ...safeHistory];
 
     setCallHistory(updated);
-    localStorage.setItem(
-      `call_history_${currentUser._id}`,
-      JSON.stringify(updated)
+    localStorage.setItem(callHistoryKey, JSON.stringify(updated));
+
+    return newItem.id;
+  };
+
+  const updateCallHistory = (id, updates) => {
+    const oldHistory = JSON.parse(localStorage.getItem(callHistoryKey) || "[]");
+    const safeHistory = Array.isArray(oldHistory) ? oldHistory : [];
+
+    const updated = safeHistory.map((call) =>
+      call.id === id ? { ...call, ...updates } : call
     );
+
+    setCallHistory(updated);
+    localStorage.setItem(callHistoryKey, JSON.stringify(updated));
   };
 
   const deleteCallHistory = (id) => {
     const updated = callHistory.filter((c) => c.id !== id);
+
     setCallHistory(updated);
-    localStorage.setItem(
-      `call_history_${currentUser._id}`,
-      JSON.stringify(updated)
-    );
+    localStorage.setItem(callHistoryKey, JSON.stringify(updated));
   };
 
   const clearCallHistory = () => {
+    const ok = confirm("Clear all call history?");
+    if (!ok) return;
+
     setCallHistory([]);
-    localStorage.removeItem(`call_history_${currentUser._id}`);
+    localStorage.removeItem(callHistoryKey);
+  };
+
+  const openCallHistorySecure = () => {
+    const savedPin = localStorage.getItem(callHistoryPinKey);
+
+    if (!savedPin) {
+      const newPin = prompt("Set secret PIN for Call History:");
+
+      if (!newPin || newPin.length < 4) {
+        alert("Minimum 4 digit PIN required");
+        return;
+      }
+
+      localStorage.setItem(callHistoryPinKey, newPin);
+      setShowCallHistory(true);
+      return;
+    }
+
+    const pin = prompt("Enter Call History PIN:");
+
+    if (pin !== savedPin) {
+      alert("Wrong PIN");
+      return;
+    }
+
+    setShowCallHistory(true);
+  };
+
+  const resetCallHistoryPin = () => {
+    const savedPin = localStorage.getItem(callHistoryPinKey);
+
+    if (!savedPin) {
+      alert("No PIN set");
+      return;
+    }
+
+    const pin = prompt("Enter old PIN:");
+
+    if (pin !== savedPin) {
+      alert("Wrong PIN");
+      return;
+    }
+
+    localStorage.removeItem(callHistoryPinKey);
+    alert("Call history PIN removed");
   };
 
   useEffect(() => {
@@ -94,32 +186,34 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
     }, 0);
 
     return () => clearTimeout(timer);
-  }, [selectedUser, lockKey]);
+  }, [selectedUser?._id, lockKey]);
 
   useEffect(() => {
-    if (!selectedUser || !currentUser?._id || locked) return;
+    if (!selectedUser || !safeCurrentUser?._id || locked) return;
 
     const fetchMessages = async () => {
       try {
         const { data } = await API.get(`/messages/${selectedUser._id}`);
-        setMessages(data);
+
+        setMessages(Array.isArray(data) ? data : []);
 
         await API.put(`/messages/read/${selectedUser._id}`);
 
         socket.emit("messageRead", {
           receiverId: selectedUser._id,
-          readerId: currentUser._id
+          readerId: safeCurrentUser._id
         });
       } catch (error) {
-        console.log("Messages fetch error:", error);
+        console.log("Messages fetch error:", error.response?.data || error.message);
+        setMessages([]);
       }
     };
 
     fetchMessages();
-  }, [selectedUser, currentUser?._id, locked]);
+  }, [selectedUser?._id, safeCurrentUser?._id, locked]);
 
   useEffect(() => {
-    if (!currentUser?._id) return;
+    if (!safeCurrentUser?._id) return;
 
     const handleReceive = async (msg) => {
       if (msg.sender === selectedUser?._id && !locked) {
@@ -130,7 +224,7 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
 
           socket.emit("messageRead", {
             receiverId: selectedUser._id,
-            readerId: currentUser._id
+            readerId: safeCurrentUser._id
           });
         } catch (error) {
           console.log("Read update error:", error);
@@ -139,17 +233,21 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
     };
 
     const handleTyping = (senderId) => {
-      if (senderId === selectedUser?._id) setTyping(true);
+      if (senderId === selectedUser?._id) {
+        setTyping(true);
+      }
     };
 
     const handleStopTyping = (senderId) => {
-      if (senderId === selectedUser?._id) setTyping(false);
+      if (senderId === selectedUser?._id) {
+        setTyping(false);
+      }
     };
 
     const handleMessageRead = () => {
       setMessages((prev) =>
         prev.map((m) =>
-          m.sender === currentUser._id ? { ...m, isRead: true } : m
+          m.sender === safeCurrentUser._id ? { ...m, isRead: true } : m
         )
       );
     };
@@ -181,11 +279,11 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
       socket.off("messageEdited", handleMessageEdited);
       socket.off("messageDeletedEveryone", handleMessageDeletedEveryone);
     };
-  }, [selectedUser, currentUser?._id, locked]);
+  }, [selectedUser?._id, safeCurrentUser?._id, locked]);
 
   useEffect(() => {
     const handleIncomingCall = (data) => {
-      addCallHistory({
+      const historyId = addCallHistory({
         name: data.callerName,
         pic: data.callerPic,
         type: data.callType,
@@ -198,7 +296,8 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
         callerName: data.callerName,
         callerPic: data.callerPic,
         callType: data.callType,
-        offer: data.offer
+        offer: data.offer,
+        historyId
       });
     };
 
@@ -207,13 +306,16 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
     return () => {
       socket.off("incomingCall", handleIncomingCall);
     };
-  }, [callHistory]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [safeCurrentUser?._id]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const setChatLock = () => {
+    if (!selectedUser) return;
+
     const pin = prompt("Set 4 digit PIN for this chat:");
 
     if (!pin || pin.length < 4) {
@@ -252,11 +354,11 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
   const handleTypingChange = (e) => {
     setText(e.target.value);
 
-    if (!selectedUser || !currentUser?._id) return;
+    if (!selectedUser || !safeCurrentUser?._id) return;
 
     socket.emit("typing", {
       receiverId: selectedUser._id,
-      senderId: currentUser._id
+      senderId: safeCurrentUser._id
     });
 
     clearTimeout(typingTimeout.current);
@@ -264,12 +366,17 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
     typingTimeout.current = setTimeout(() => {
       socket.emit("stopTyping", {
         receiverId: selectedUser._id,
-        senderId: currentUser._id
+        senderId: safeCurrentUser._id
       });
     }, 700);
   };
 
   const editMessage = async (msg) => {
+    if (msg.fileUrl) {
+      alert("Only text messages can be edited");
+      return;
+    }
+
     const newText = prompt("Edit message:", msg.text);
 
     if (!newText || newText.trim() === msg.text) return;
@@ -337,6 +444,7 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
 
   const closeCamera = () => {
     cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
+    cameraStreamRef.current = null;
     setShowCamera(false);
   };
 
@@ -345,11 +453,10 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
     if (!video) return;
 
     const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
 
     const ctx = canvas.getContext("2d");
-
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -367,14 +474,14 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
   };
 
   const sendMessage = async (audioBlob = null) => {
-    if (!selectedUser || !currentUser?._id || sending) return;
+    if (!selectedUser || !safeCurrentUser?._id || sending) return;
     if (!text.trim() && !file && !audioBlob) return;
 
     const tempId = `temp-${Date.now()}`;
 
     const optimisticMsg = {
       _id: tempId,
-      sender: currentUser._id,
+      sender: safeCurrentUser._id,
       receiver: selectedUser._id,
       text: audioBlob ? "" : text,
       fileUrl: file ? URL.createObjectURL(file) : "",
@@ -424,7 +531,13 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
 
       const recorder = new MediaRecorder(stream);
       mediaRecorderRef.current = recorder;
@@ -458,7 +571,7 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
   const startAudioCall = () => {
     if (!selectedUser) return;
 
-    addCallHistory({
+    const historyId = addCallHistory({
       name: selectedUser.name,
       pic: selectedUser.profilePic,
       type: "audio",
@@ -468,14 +581,15 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
     setCallData({
       outgoing: true,
       peerId: selectedUser._id,
-      callType: "audio"
+      callType: "audio",
+      historyId
     });
   };
 
   const startVideoCall = () => {
     if (!selectedUser) return;
 
-    addCallHistory({
+    const historyId = addCallHistory({
       name: selectedUser.name,
       pic: selectedUser.profilePic,
       type: "video",
@@ -485,7 +599,8 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
     setCallData({
       outgoing: true,
       peerId: selectedUser._id,
-      callType: "video"
+      callType: "video",
+      historyId
     });
   };
 
@@ -500,10 +615,11 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
 
         {callData && (
           <CallModal
-            currentUser={currentUser}
+            currentUser={safeCurrentUser}
             selectedUser={selectedUser}
             callData={callData}
             setCallData={setCallData}
+            onCallFinish={updateCallHistory}
           />
         )}
       </main>
@@ -514,7 +630,14 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
     return (
       <main className="chat-area">
         <header className="chat-header">
-          <img src={selectedUser.profilePic} alt={selectedUser.name} />
+          <img
+            src={
+              selectedUser.profilePic ||
+              "https://cdn-icons-png.flaticon.com/512/149/149071.png"
+            }
+            alt={selectedUser.name}
+          />
+
           <div>
             <h3>{selectedUser.name}</h3>
             <p>Locked chat</p>
@@ -538,10 +661,11 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
 
         {callData && (
           <CallModal
-            currentUser={currentUser}
+            currentUser={safeCurrentUser}
             selectedUser={selectedUser}
             callData={callData}
             setCallData={setCallData}
+            onCallFinish={updateCallHistory}
           />
         )}
       </main>
@@ -551,14 +675,20 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
   return (
     <main className="chat-area">
       <header className="chat-header">
-        <img src={selectedUser.profilePic} alt={selectedUser.name} />
+        <img
+          src={
+            selectedUser.profilePic ||
+            "https://cdn-icons-png.flaticon.com/512/149/149071.png"
+          }
+          alt={selectedUser.name}
+        />
 
         <div>
           <h3>{selectedUser.name}</h3>
           <p>
             {typing
               ? "typing..."
-              : onlineUsers.includes(selectedUser._id)
+              : safeOnlineUsers.includes(selectedUser._id)
               ? "Online"
               : selectedUser.lastSeen
               ? `Last seen ${new Date(selectedUser.lastSeen).toLocaleString()}`
@@ -567,16 +697,16 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
         </div>
 
         <div className="call-buttons">
-          <button onClick={startAudioCall}>
+          <button onClick={startAudioCall} title="Audio call">
             <BsTelephoneFill />
           </button>
 
-          <button onClick={startVideoCall}>
+          <button onClick={startVideoCall} title="Video call">
             <BsCameraVideoFill />
           </button>
         </div>
 
-        <button className="chat-lock-btn" onClick={() => setShowCallHistory(true)}>
+        <button className="chat-lock-btn" onClick={openCallHistorySecure}>
           History
         </button>
 
@@ -605,7 +735,7 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
           <MessageBubble
             key={msg._id}
             msg={msg}
-            me={msg.sender === currentUser._id}
+            me={msg.sender === safeCurrentUser._id}
             onEdit={editMessage}
             onDeleteMe={deleteForMe}
             onDeleteEveryone={deleteForEveryone}
@@ -744,45 +874,64 @@ function ChatBox({ selectedUser, currentUser, onlineUsers }) {
 
             <h2>Call History</h2>
 
-            {callHistory.length === 0 ? (
-              <p style={{ textAlign: "center", color: "#8696a0" }}>
-                No call history
-              </p>
-            ) : (
-              callHistory.map((call) => (
-                <div className="call-history-row" key={call.id}>
-                  <img src={call.pic} alt={call.name} />
+            <div className="call-history-list">
+              {callHistory.length === 0 ? (
+                <p style={{ textAlign: "center", color: "#8696a0" }}>
+                  No call history
+                </p>
+              ) : (
+                callHistory.map((call) => (
+                  <div className="call-history-row" key={call.id}>
+                    <img
+                      src={
+                        call.pic ||
+                        "https://cdn-icons-png.flaticon.com/512/149/149071.png"
+                      }
+                      alt={call.name}
+                    />
 
-                  <div>
-                    <h4>{call.name}</h4>
-                    <p>
-                      {call.status} {call.type} call ·{" "}
-                      {new Date(call.time).toLocaleString()}
-                    </p>
+                    <div>
+                      <h4>{call.name}</h4>
+                      <p>
+                        {call.status} {call.type} call ·{" "}
+                        {call.durationText || "00:00"}
+                        <br />
+                        {new Date(call.time).toLocaleString()}
+                      </p>
+                    </div>
+
+                    <button onClick={() => deleteCallHistory(call.id)}>
+                      Delete
+                    </button>
                   </div>
-
-                  <button onClick={() => deleteCallHistory(call.id)}>
-                    Delete
-                  </button>
-                </div>
-              ))
-            )}
+                ))
+              )}
+            </div>
 
             {callHistory.length > 0 && (
               <button className="save-profile-btn" onClick={clearCallHistory}>
                 Clear All
               </button>
             )}
+
+            <button
+              className="save-profile-btn"
+              style={{ marginTop: "10px", background: "#2a3942" }}
+              onClick={resetCallHistoryPin}
+            >
+              Reset History PIN
+            </button>
           </div>
         </div>
       )}
 
       {callData && (
         <CallModal
-          currentUser={currentUser}
+          currentUser={safeCurrentUser}
           selectedUser={selectedUser}
           callData={callData}
           setCallData={setCallData}
+          onCallFinish={updateCallHistory}
         />
       )}
     </main>

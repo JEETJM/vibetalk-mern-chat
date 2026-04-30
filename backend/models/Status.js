@@ -7,18 +7,22 @@ const statusSchema = new mongoose.Schema(
       ref: "User",
       required: true
     },
+
     mediaUrl: {
       type: String,
       default: ""
     },
+
     mediaType: {
       type: String,
       default: ""
     },
+
     text: {
       type: String,
       default: ""
     },
+
     viewers: [
       {
         user: {
@@ -31,14 +35,14 @@ const statusSchema = new mongoose.Schema(
         }
       }
     ],
+
     expiresAt: {
       type: Date,
-      required: true
+      required: true,
+      index: { expires: 0 }
     }
   },
   { timestamps: true }
 );
-
-statusSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model("Status", statusSchema);

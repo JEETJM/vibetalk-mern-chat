@@ -31,9 +31,9 @@ router.post("/", protect, upload.single("file"), async (req, res) => {
 
     const status = await Status.create({
       user: req.user._id,
-      text: text || "",
       mediaUrl,
       mediaType,
+      text: text || "",
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
     });
 
@@ -56,6 +56,7 @@ router.get("/", protect, async (req, res) => {
 
     res.json(statuses);
   } catch (error) {
+    console.log("STATUS FETCH ERROR:", error);
     res.status(500).json({ message: "Fetch status failed" });
   }
 });
@@ -97,6 +98,7 @@ router.delete("/:id", protect, async (req, res) => {
 
     res.json({ message: "Status deleted", id: req.params.id });
   } catch (error) {
+    console.log("STATUS DELETE ERROR:", error);
     res.status(500).json({ message: "Delete status failed" });
   }
 });
