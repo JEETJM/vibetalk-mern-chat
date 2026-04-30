@@ -59,15 +59,19 @@ function ChatBox({ selectedUser, setSelectedUser, currentUser, onlineUsers }) {
     const saved = JSON.parse(localStorage.getItem(callHistoryKey) || "[]");
     return Array.isArray(saved) ? saved : [];
   });
+useEffect(() => {
+  if (!safeCurrentUser?._id) return;
 
-  useEffect(() => {
-    if (!safeCurrentUser?._id) return;
-
+  const timer = setTimeout(() => {
     const savedHistory = JSON.parse(
-      localStorage.getItem(callHistoryKey) || "[]",
+      localStorage.getItem(callHistoryKey) || "[]"
     );
+
     setCallHistory(Array.isArray(savedHistory) ? savedHistory : []);
-  }, [safeCurrentUser?._id, callHistoryKey]);
+  }, 0);
+
+  return () => clearTimeout(timer);
+}, [safeCurrentUser?._id, callHistoryKey]);
 
   const addCallHistory = (item) => {
     const newItem = {
